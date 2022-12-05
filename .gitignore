@@ -50,3 +50,21 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# Eclipse
+.metadata/
+.settings/
+[Rr]elease
+[Dd]ebug
+.launch
+
+*.project
+*.cproject
+*.ld
+
+RemoteSystemsTempFiles/
+*.chm
+*.settings.xml     
+*.xml
+*.launch
+*.cfg
