@@ -13,9 +13,9 @@ int main(void){
 	float alpha;
 	printf("a = ");
 	if ( scanf("%f", &alpha) ){
-			printf("Invalid input! Exiting...");
-			wait_for_user_input();
-			return 0;
+		printf("Invalid input! Exiting...");
+		wait_for_user_input();
+		return 0;
 	}
 
 	float z1, z2;
