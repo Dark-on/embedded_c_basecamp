@@ -12,7 +12,7 @@ void wait_for_user_input(void);
 int main(void){
 	float alpha;
 	printf("a = ");
-	if ( scanf("%f", &alpha) ){
+	if ( ! scanf("%f", &alpha) ){
 		printf("Invalid input! Exiting...");
 		wait_for_user_input();
 		return 0;
