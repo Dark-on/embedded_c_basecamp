@@ -43,18 +43,20 @@ unsigned int output_maze[LEN][LEN] = {{1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1},
 									 {1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1},
 									 {1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1},
 									 {1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1}};
-coordinate_t start_pos;
+
 coordinate_t finish_pos;
 
 void print_maze(unsigned int const maze[LEN][LEN]);
-void move(coordinate_t path[], unsigned int len_arr);
-void save_path(unsigned int maze[LEN][LEN], coordinate_t path[], unsigned int len_arr);
-void debug_path(coordinate_t path[], unsigned int len_arr);
+void move(coordinate_t path[], unsigned int len_path);
+void save_path(unsigned int maze[LEN][LEN],
+			   coordinate_t const path[], unsigned int const len_path);
+void debug_path(coordinate_t const path[], unsigned int const len_path);
 
 
 int main(void){
 
 	/* Find start position*/
+	coordinate_t start_pos;
 	for(int i = 0; i < LEN; i++){
 		if (input_maze[0][i] == 0){
 			start_pos.y = 0;
@@ -62,7 +64,6 @@ int main(void){
 			input_maze[0][i] = 2;
 		}
 	}
-//	printf("Start: [%u][%u]\n", start_pos.y, start_pos.x);
 
 	/* Find end position*/
 	for(int i = 0; i < LEN; i++){
@@ -71,17 +72,16 @@ int main(void){
 			finish_pos.x = i;
 		}
 	}
-//	printf("Finish: [%u][%u]\n", finish_pos.y, finish_pos.x);
-	coordinate_t start[1] = {start_pos};
-	move(start, 1);
 
+	coordinate_t path[1] = {start_pos};
+	move(path, 1);
+	print_maze(output_maze);
 }
 
 
-void move(coordinate_t path[], unsigned int len_arr){
-//	printf("\n");
-//	print_maze(input_maze);
-
+void move(coordinate_t path[], unsigned int len_path){
+	/* Move to next free cell and add cell to path.
+	 * If cell is finish -> save path to array and end recursion*/
 
 	coordinate_t current_coord = path[0];
 	coordinate_t neighbors[4] = {{current_coord.y,     current_coord.x - 1},
@@ -91,31 +91,26 @@ void move(coordinate_t path[], unsigned int len_arr){
 	for(unsigned int i = 0; i < 4; i++){
 		coordinate_t item = neighbors[i];
 		if (item.y == finish_pos.y && item.x == finish_pos.x){
-
-			coordinate_t new_path[len_arr + 1];
+			/* Add to path new cell*/
+			coordinate_t new_path[len_path + 1];
 			new_path[0] = item;
-			for (unsigned j = 0; j < len_arr; j ++){
+			for (unsigned j = 0; j < len_path; j ++){
 				new_path[j + 1] = path[j];
 			}
-
-//			printf("finish\n");
-//			debug_path(new_path, len_arr + 1); //todo
-
-			save_path(output_maze, new_path, len_arr + 1);
-			print_maze(output_maze);
+			/*Mark dots of path in output maze*/
+			save_path(output_maze, new_path, len_path + 1);
 			break;
+
 		} else if (0 <= item.y && item.y < LEN && 0 <= item.x && item.x < LEN && input_maze[item.y][item.x] == 0){
-			coordinate_t new_path[len_arr + 1];
+			/* Add to path new cell*/
+			coordinate_t new_path[len_path + 1];
 			new_path[0] = item;
-			for (unsigned j = 0; j < len_arr; j ++){
+			for (unsigned j = 0; j < len_path; j ++){
 				new_path[j + 1] = path[j];
 			}
-//			printf("Move: [%u][%u]\n", item.y, item.x);
-//			debug_path(new_path, len_arr + 1); //todo
-
-
+			/*Mark visited cell*/
 			input_maze[item.y][item.x] = 2;
-			move(new_path, len_arr + 1);
+			move(new_path, len_path + 1);
 		}
 	}
 }
@@ -136,15 +131,16 @@ void print_maze(unsigned int const maze[LEN][LEN]){
 	}
 }
 
-void save_path(unsigned int maze[LEN][LEN], coordinate_t path[], unsigned int len_arr){
-	for(unsigned int i = 0; i < len_arr; i++){
+void save_path(unsigned int maze[LEN][LEN],
+			   coordinate_t const path[], unsigned int const len_path){
+	for(unsigned int i = 0; i < len_path; i++){
 		coordinate_t dot = path[i];
 		maze[dot.y][dot.x] = 2;
 	}
 }
 
-void debug_path(coordinate_t path[], unsigned int len_arr){
-	for(unsigned int i = 0; i < len_arr; i++){
+void debug_path(coordinate_t const path[], unsigned int const len_path){
+	for(unsigned int i = 0; i < len_path; i++){
 		printf("[%u][%u]\n", path[i].y, path[i].x);
 	}
 	printf("\n");
