@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "modes.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -35,13 +35,19 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
+#define MAX_DELAY 4096
+#define MIN_DELAY 32
+#define MAX_MODE 3
 
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+uint32_t speed = 512;
+uint8_t mode = 0;
+uint8_t is_running = 1;
+uint8_t is_mode_changed = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -86,28 +92,37 @@ int main(void)
   MX_GPIO_Init();
   /* USER CODE BEGIN 2 */
 
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  HAL_Delay(500);
-	  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, 1);
-	  HAL_Delay(500);
-	  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, 0);
-//	  HAL_Delay(500);
-//	  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, 1);
-//	  HAL_Delay(500);
-//	  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_13, 0);
-//	  HAL_Delay(500);
-//	  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, 1);
-//	  HAL_Delay(500);
-//	  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, 0);
-//	  HAL_Delay(500);
-//	  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, 1);
-//	  HAL_Delay(500);
-//	  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, 0);
+	  if (!is_running){
+		  continue;
+	  }
+	  switch (mode)
+	  {
+	  case 0:
+		  run_mode_0();
+//		  run_mode("G1D.G0D.O1D.O0D.R1D.R0D.B1D.B0D.");
+		  break;
+	  case 1:
+		  run_mode_1();
+		  break;
+	  case 2:
+		  run_mode_2();
+		  break;
+	  case 3:
+		  run_mode_3();
+		  break;
+	  default:
+		  // in case of unknown mode
+		  run_default_mode();
+	  }
+
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -168,6 +183,7 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
@@ -179,11 +195,17 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PC6 PC11 */
-  GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_11;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  /*Configure GPIO pins : PC6 PC8 PC9 PC11 */
+  GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_11;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PA15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_15;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
@@ -195,6 +217,49 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+	if (GPIO_Pin == GPIO_PIN_6)
+	{
+		if (speed > MIN_DELAY){
+			// min speed = 32ms
+			speed /= 2;
+		}
+		return;
+	}
+	if (GPIO_Pin == GPIO_PIN_8)
+	{
+		if (speed < MAX_DELAY){
+			// max speed ~ 4s
+			speed *= 2;
+		}
+		return;
+	}
+	if (GPIO_Pin == GPIO_PIN_9)
+	{
+		if (mode > 0){
+			turn_off_leds();
+			mode -= 1;
+		}
+//		is_mode_changed = 1;
+		return;
+	}
+	if (GPIO_Pin == GPIO_PIN_11)
+	{
+		if (mode < MAX_MODE){
+			turn_off_leds();
+			mode += 1;
+		}
+//		is_mode_changed = 1;
+		return;
+	}
+	if (GPIO_Pin == GPIO_PIN_15)
+	{
+		// is_running = !is_running;
+		// toggle the bit
+		is_running ^= 1;
+	}
+}
 
 /* USER CODE END 4 */
 
