@@ -35,6 +35,7 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
+
 #define MAX_DELAY 4096
 #define MIN_DELAY 32
 #define MAX_MODE 3
@@ -44,10 +45,12 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+
 uint32_t speed = 512;
 uint8_t mode = 0;
 uint8_t is_running = 1;
 uint8_t is_mode_changed = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -99,27 +102,26 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  if (!is_running){
+	  if (is_running == 0){
 		  continue;
 	  }
 	  switch (mode)
 	  {
 	  case 0:
-		  run_mode_0();
-//		  run_mode("G1D.G0D.O1D.O0D.R1D.R0D.B1D.B0D.");
+		  run_mode("G1D.G0D.O1D.O0D.R1D.R0D.B1D.B0D.");
 		  break;
 	  case 1:
-		  run_mode_1();
+		  run_mode("G1O1R1B1D.G0O0R0B0D.");
 		  break;
 	  case 2:
-		  run_mode_2();
+		  run_mode("R1D.O1D.G1D.B1D.R0D.O0D.G0D.B0D.");
 		  break;
 	  case 3:
-		  run_mode_3();
+		  run_mode("O1B1D.O0B0D.R1G1D.R0G0D.");
 		  break;
 	  default:
 		  // in case of unknown mode
-		  run_default_mode();
+		  emergency_mode();
 	  }
 
 
@@ -219,45 +221,46 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-	if (GPIO_Pin == GPIO_PIN_6)
-	{
+	switch (GPIO_Pin){
+	case GPIO_PIN_6:
+		// speed up blinking
 		if (speed > MIN_DELAY){
-			// min speed = 32ms
+			// min delay = 32ms
 			speed /= 2;
 		}
-		return;
-	}
-	if (GPIO_Pin == GPIO_PIN_8)
-	{
+		break;
+	case GPIO_PIN_8:
+		// slow down blinking
 		if (speed < MAX_DELAY){
-			// max speed ~ 4s
+			// max delay ~ 4s
 			speed *= 2;
 		}
-		return;
-	}
-	if (GPIO_Pin == GPIO_PIN_9)
-	{
+		break;
+	case GPIO_PIN_9:
 		if (mode > 0){
 			turn_off_leds();
 			mode -= 1;
+			is_mode_changed = 1;
 		}
-//		is_mode_changed = 1;
-		return;
-	}
-	if (GPIO_Pin == GPIO_PIN_11)
-	{
+		break;
+	case GPIO_PIN_11:
 		if (mode < MAX_MODE){
 			turn_off_leds();
 			mode += 1;
+			is_mode_changed = 1;
 		}
-//		is_mode_changed = 1;
-		return;
-	}
-	if (GPIO_Pin == GPIO_PIN_15)
-	{
-		// is_running = !is_running;
-		// toggle the bit
-		is_running ^= 1;
+		break;
+	case GPIO_PIN_15:
+		// toggle the status of the program
+		if (is_running == 1){
+			// turn off the program
+			is_running = 0;
+			is_mode_changed = 1;
+		} else {
+			//turn on the program
+			is_running = 1;
+		}
+		break;
 	}
 }
 

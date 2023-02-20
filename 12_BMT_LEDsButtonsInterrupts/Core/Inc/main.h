@@ -42,7 +42,7 @@ extern "C" {
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
 extern uint32_t speed;
-//extern uint8_t is_mode_changed;
+extern uint8_t is_mode_changed;
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
