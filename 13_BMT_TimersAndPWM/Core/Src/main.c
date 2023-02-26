@@ -35,14 +35,15 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+#define FREQUENCY_STEP 1
+#define PERIOD(frequency) (uint32_t)(1000 / frequency)
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 TIM_HandleTypeDef htim4;
 
 /* USER CODE BEGIN PV */
-
+uint32_t frequency = 10; // 10 Hz
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -94,29 +95,25 @@ int main(void)
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_3);
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_4);
 
-  TIM4->CCR1 = 10;
-  TIM4->CCR2 = 100;
-  TIM4->CCR3 = 150;
-  TIM4->CCR4 = 200;
+  TIM4->CCR1 = 10 * PERIOD(frequency) / 100;
+  TIM4->CCR2 = 25 * PERIOD(frequency) / 100;
+  TIM4->CCR3 = 50 * PERIOD(frequency) / 100;
+  TIM4->CCR4 = 75 * PERIOD(frequency) / 100;
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  uint32_t counter = 0;
   while (1)
   {
-	  counter++;
-	  HAL_Delay(10);
-	  if (counter > 200){
-		  HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_2);
-	  }
+//		  HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_2);
+  }
     /* USER CODE END WHILE */
 
-    /* USER CODE BEGIN 3 */
-  }
-  /* USER CODE END 3 */
+  /* USER CODE BEGIN 3 */
 }
+  /* USER CODE END 3 */
+
 
 /**
   * @brief System Clock Configuration
@@ -181,7 +178,7 @@ static void MX_TIM4_Init(void)
   htim4.Instance = TIM4;
   htim4.Init.Prescaler = 16000;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 500;
+  htim4.Init.Period = PERIOD(frequency);
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
@@ -237,13 +234,59 @@ static void MX_TIM4_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOD_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+
+  /*Configure GPIO pins : PC6 PC8 PC9 PC11 */
+  GPIO_InitStruct.Pin = GPIO_PIN_6|GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_11;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PA15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_15;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+	switch (GPIO_Pin){
+	case GPIO_PIN_11:
+		frequency += FREQUENCY_STEP;
+		htim4.Init.Period = PERIOD(frequency);
+		HAL_TIM_Base_Init(&htim4);
+		TIM4->CCR1 = 10 * PERIOD(frequency) / 100;
+		TIM4->CCR2 = 25 * PERIOD(frequency) / 100;
+		TIM4->CCR3 = 50 * PERIOD(frequency) / 100;
+		TIM4->CCR4 = 75 * PERIOD(frequency) / 100;
+		break;
+	case GPIO_PIN_9:
+		if (frequency > FREQUENCY_STEP){
+			frequency -= FREQUENCY_STEP;
+			htim4.Init.Period = PERIOD(frequency);
+			HAL_TIM_Base_Init(&htim4);
+			TIM4->CCR1 = 10 * PERIOD(frequency) / 100;
+			TIM4->CCR2 = 25 * PERIOD(frequency) / 100;
+			TIM4->CCR3 = 50 * PERIOD(frequency) / 100;
+			TIM4->CCR4 = 75 * PERIOD(frequency) / 100;
+		}
+		break;
+	}
+}
 
 /* USER CODE END 4 */
 
