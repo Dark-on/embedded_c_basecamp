@@ -26,6 +26,13 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+typedef enum{
+	NO_CHANNEL,
+	CHANNEL_1,
+	CHANNEL_2,
+	CHANNEL_3,
+	CHANNEL_4,
+} channel_t;
 
 /* USER CODE END PTD */
 
@@ -35,11 +42,14 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-#define FREQUENCY_STEP 1   // 1  Hz
-#define FREQUENCY_START 10 // 10 Hz
-#define DUTY_STEP 5        // 5 %
+#define FREQUENCY_STEP 10   // Hz
+#define FREQUENCY_START 20 // Hz
+#define DUTY_STEP 20        // 20 %
+#define DUTY_START 20
 
-#define PERIOD(frequency) (uint32_t)(1000 / frequency)
+// 25MHz / 2500 = 10 000 per second - after prescaler
+#define PERIOD(frequency) (uint32_t)(10000 / frequency)
+
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -54,7 +64,11 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_TIM4_Init(void);
 /* USER CODE BEGIN PFP */
-void PWM_param_init(uint8_t tim_channel, uint32_t frequency, uint8_t duty);
+
+void PWM_change_channel(void);
+void PWM_change_duty(uint32_t frequency, uint8_t duty);
+void PWM_change_frequency(uint32_t frequency, uint8_t duty);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -95,6 +109,9 @@ int main(void)
   MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
 
+  // set up duty and frequency before start
+  PWM_change_frequency(FREQUENCY_START, DUTY_START);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -105,10 +122,9 @@ int main(void)
   }
     /* USER CODE END WHILE */
 
-  /* USER CODE BEGIN 3 */
-}
+    /* USER CODE BEGIN 3 */
   /* USER CODE END 3 */
-
+}
 
 /**
   * @brief System Clock Configuration
@@ -127,9 +143,8 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
@@ -140,7 +155,7 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSE;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
@@ -171,9 +186,9 @@ static void MX_TIM4_Init(void)
 
   /* USER CODE END TIM4_Init 1 */
   htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 16000;
+  htim4.Init.Prescaler = 1600;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = PERIOD(FREQUENCY_START);
+  htim4.Init.Period = 5000;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim4) != HAL_OK)
@@ -232,6 +247,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
@@ -260,80 +276,83 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
 	static uint32_t frequency = FREQUENCY_START;
-	static uint8_t duty = 20; // 20%
-	static uint8_t tim_channel = 0;
+	static uint8_t duty = DUTY_START;
+
 	switch (GPIO_Pin){
-	case GPIO_PIN_11:
-		frequency += FREQUENCY_STEP;
-		PWM_param_init(tim_channel, frequency, duty);
+	case GPIO_PIN_11: //SWT1
+		if (frequency <= (10000 - FREQUENCY_STEP)){ //max frequency 10kHz
+			frequency += FREQUENCY_STEP;
+			PWM_change_frequency(frequency, duty);
+		}
 		break;
-	case GPIO_PIN_9:
-		if (frequency > FREQUENCY_STEP){
+	case GPIO_PIN_9: //SWT3
+		if (frequency > FREQUENCY_STEP){ // min frequency = 0
 			frequency -= FREQUENCY_STEP;
-			PWM_param_init(tim_channel, frequency, duty);
+			PWM_change_frequency(frequency, duty);
 		}
 		break;
-	case GPIO_PIN_6:
-		if (duty < (100 - DUTY_STEP)){
+	case GPIO_PIN_6: //SWT4
+		if (duty <= (100 - DUTY_STEP)){ //max duty = 100
 			duty += DUTY_STEP;
-			PWM_param_init(tim_channel, frequency, duty);
+			PWM_change_duty(frequency, duty);
 		}
 		break;
-	case GPIO_PIN_8:
-		if (duty < (100 - DUTY_STEP)){
+	case GPIO_PIN_8: //SWT5
+		if (duty >= DUTY_STEP){ // min duty = 0
 			duty -= DUTY_STEP;
-			PWM_param_init(tim_channel, frequency, duty);
+			PWM_change_duty(frequency, duty);
 		}
 		break;
-	case GPIO_PIN_15:
-		if (tim_channel < 4){
-			tim_channel++;
-		}else{
-			tim_channel = 0;
-		}
-		PWM_param_init(tim_channel, frequency, duty);
+	case GPIO_PIN_15: //SWT2
+		PWM_change_channel();
 		break;
 	}
 }
 
 
-void PWM_param_init(uint8_t tim_channel, uint32_t frequency, uint8_t duty){
-	// TODO: Separate to 3 functions
-	/* tim_channel  = 1, 2, 3, 4
-	 * duty = 0-100 %
-	 */
+void PWM_change_duty(uint32_t frequency, uint8_t duty){
+	uint32_t high_duration = duty * PERIOD(frequency) / 100;
+	TIM4->CCR1 = high_duration;
+	TIM4->CCR2 = high_duration;
+	TIM4->CCR3 = high_duration;
+	TIM4->CCR4 = high_duration;
+}
+
+
+void PWM_change_frequency(uint32_t frequency, uint8_t duty){
 	htim4.Init.Period = PERIOD(frequency);
 	HAL_TIM_Base_Init(&htim4);
-	switch (tim_channel){
-	case 1:
-		HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
-		TIM4->CCR1 = duty * PERIOD(frequency) / 100;
-		break;
-	case 2:
-		HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_1);
-		HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_2);
-		TIM4->CCR2 = duty * PERIOD(frequency) / 100;
-		break;
-	case 3:
-		HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_2);
-		HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_3);
-		TIM4->CCR3 = duty * PERIOD(frequency) / 100;
-		break;
-	case 4:
-		HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_3);
-		HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_4);
-		TIM4->CCR4 = duty * PERIOD(frequency) / 100;
-		break;
-	case 0:
-		HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_4);
-		break;
-	default:
-		HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_1);
-		HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_2);
-		HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_3);
-		HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_4);
-	}
 
+	PWM_change_duty(frequency, duty);
+}
+
+
+void PWM_change_channel(void){
+	static channel_t channel = NO_CHANNEL;
+	channel ++;
+	switch (channel){
+		case CHANNEL_1:
+			HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
+			break;
+		case CHANNEL_2:
+			HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_1);
+			HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_2);
+			break;
+		case CHANNEL_3:
+			HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_2);
+			HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_3);
+			break;
+		case CHANNEL_4:
+			HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_3);
+			HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_4);
+			break;
+		default:
+			channel = NO_CHANNEL;
+			// no break
+		case NO_CHANNEL:
+			HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_4);
+			break;
+	}
 }
 
 /* USER CODE END 4 */
