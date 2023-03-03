@@ -36,6 +36,15 @@
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 #define PERIOD 1000
+
+#define DELAY(frequency) ((uint32_t)(500 / frequency)) // ms
+
+/* duty in % = (adcValue * 100 / 4096), where 4096 - Umax
+ * high_duration = duty * period / 1000
+ * high duration = (adcValue * 100 / 4096) * period / 100 =
+ *               =  adcValue * period / 4096
+ * */
+#define HIGH_DURATION(adcValue) ((uint32_t)(adcValue * PERIOD / 4096))
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -46,6 +55,7 @@ ADC_HandleTypeDef hadc3;
 TIM_HandleTypeDef htim4;
 
 /* USER CODE BEGIN PV */
+uint8_t emergency_situations[3] = {0, 0, 0};
 
 /* USER CODE END PV */
 
@@ -57,7 +67,8 @@ static void MX_TIM4_Init(void);
 static void MX_ADC2_Init(void);
 static void MX_ADC3_Init(void);
 /* USER CODE BEGIN PFP */
-
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc);
+uint8_t getAmountOfEmergencySituations(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -104,46 +115,35 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-  uint32_t adcValue1 = 0;
-  uint32_t adcValue2 = 0;
-  uint32_t adcValue3 = 0;
-  volatile HAL_StatusTypeDef adcPoolResult1; //inter temp sensor
-  volatile HAL_StatusTypeDef adcPoolResult2; //exter temp sensor
-  volatile HAL_StatusTypeDef adcPoolResult3; // potentiometer
-
-  HAL_ADC_Start(&hadc1);
-  HAL_ADC_Start(&hadc2);
-  HAL_ADC_Start(&hadc3);
-
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_4);
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_2);
   HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
 
+  HAL_ADC_Start_IT(&hadc1);
+  HAL_ADC_Start_IT(&hadc2);
+  HAL_ADC_Start_IT(&hadc3);
+
+
+
   while (1)
   {
-	  adcPoolResult1 = HAL_ADC_PollForConversion(&hadc1, 100);
-	  adcPoolResult2 = HAL_ADC_PollForConversion(&hadc2, 100);
-	  adcPoolResult3 = HAL_ADC_PollForConversion(&hadc3, 100);
-
-	  if (adcPoolResult1 == HAL_OK)
-		  adcValue1 = HAL_ADC_GetValue(&hadc1);
-
-	  if (adcPoolResult2 == HAL_OK)
-		  adcValue2 = HAL_ADC_GetValue(&hadc2);
-
-	  if (adcPoolResult3 == HAL_OK)
-		  adcValue3 = HAL_ADC_GetValue(&hadc3);
-
-	  /* duty in % = (adcValue * 100 / 4096), where 4096 - Umax
-	   * high_duration = duty * period / 1000
-	   * high duration = (adcValue * 100 / 4096) * period / 100 =
-	   *               =  adcValue * period / 4096
-	   * */
-
-	  TIM4->CCR2 = (uint32_t)(adcValue1 * PERIOD / 4096); //Orange
-	  TIM4->CCR1 = (uint32_t)(adcValue2 * PERIOD / 4096); //Green
-	  TIM4->CCR4 = (uint32_t)(adcValue3 * PERIOD / 4096); //Blue
-
+	  switch (getAmountOfEmergencySituations()){
+	  case 1:
+		  HAL_Delay(DELAY(1)); // 1Hz
+		  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
+		  break;
+	  case 2:
+		  HAL_Delay((DELAY(2.5))); // 2.5Hz
+		  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
+		  break;
+	  case 3:
+		  HAL_Delay(DELAY(5)); // 5Hz
+		  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
+		  break;
+	  case 0:
+	  default:
+		  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_RESET);
+	  }
 
 
     /* USER CODE END WHILE */
@@ -287,7 +287,7 @@ static void MX_ADC2_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_9;
   sConfig.Rank = 1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+  sConfig.SamplingTime = ADC_SAMPLETIME_480CYCLES;
   if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -339,7 +339,7 @@ static void MX_ADC3_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_3;
   sConfig.Rank = 1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+  sConfig.SamplingTime = ADC_SAMPLETIME_480CYCLES;
   if (HAL_ADC_ConfigChannel(&hadc3, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -444,6 +444,54 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+uint8_t getAmountOfEmergencySituations(void){
+	  uint8_t amountEmSit = 0;
+	  for(uint8_t i; i < 3; i++){
+		  if (emergency_situations[i]){
+			  amountEmSit++;
+		  }
+	  }
+	  return amountEmSit;
+}
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
+	static uint32_t adcValue1 = 0; //internal temp sensor
+	static uint32_t adcValue2 = 0; //external temp sensor
+	static uint32_t adcValue3 = 0; //potentiometer
+
+	if (hadc->Instance == ADC1){ //internal temp sensor
+		adcValue1 = HAL_ADC_GetValue(&hadc1);
+
+		TIM4->CCR2 = HIGH_DURATION(adcValue1); //Orange
+		//TODO: find more correct borders for emergency situations
+		if (adcValue1 < 950){ // Too high temperature
+			emergency_situations[0] = 1;
+		}else{
+			emergency_situations[0] = 0;
+		}
+	}else if (hadc->Instance == ADC2){ //external temp sensor
+		adcValue2 = HAL_ADC_GetValue(&hadc2);
+
+		TIM4->CCR1 = HIGH_DURATION(adcValue2); //Green
+
+		if (adcValue2 < 1900){ // Too high temperature
+			emergency_situations[1] = 1;
+		}else{
+			emergency_situations[1] = 0;
+		}
+	}else if (hadc->Instance == ADC3){ //potentiometer
+		adcValue3 = HAL_ADC_GetValue(&hadc3);
+
+		TIM4->CCR4 = HIGH_DURATION(adcValue3); //Blue
+
+		if (adcValue3 > 3000){ // Too high voltage
+			emergency_situations[2] = 1;
+		}else{
+			emergency_situations[2] = 0;
+		}
+	}
+}
 
 /* USER CODE END 4 */
 
