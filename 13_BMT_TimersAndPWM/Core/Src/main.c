@@ -42,9 +42,9 @@ typedef enum{
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-#define FREQUENCY_STEP 10   // Hz
+#define FREQUENCY_STEP 10  // Hz
 #define FREQUENCY_START 20 // Hz
-#define DUTY_STEP 20        // 20 %
+#define DUTY_STEP 20       // 20 %
 #define DUTY_START 20
 
 // 25MHz / 2500 = 10 000 per second - after prescaler
@@ -83,8 +83,6 @@ void PWM_change_frequency(uint32_t frequency, uint8_t duty);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-// TODO: External clock
-
 
   /* USER CODE END 1 */
 
@@ -118,7 +116,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-//		  HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_2);
   }
     /* USER CODE END WHILE */
 
