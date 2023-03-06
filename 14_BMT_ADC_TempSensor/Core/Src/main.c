@@ -39,12 +39,6 @@
 
 #define DELAY(frequency) ((uint32_t)(500 / frequency)) // ms
 
-/* duty in % = (adcValue * 100 / 4096), where 4096 - Umax
- * high_duration = duty * period / 1000
- * high duration = (adcValue * 100 / 4096) * period / 100 =
- *               =  adcValue * period / 4096
- * */
-#define HIGH_DURATION(adcValue) ((uint32_t)(adcValue * PERIOD / 4096))
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -69,6 +63,7 @@ static void MX_ADC3_Init(void);
 /* USER CODE BEGIN PFP */
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc);
 uint8_t getAmountOfEmergencySituations(void);
+uint32_t getHighDuration(uint32_t adcValue, uint32_t start, uint32_t end);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -124,7 +119,6 @@ int main(void)
   HAL_ADC_Start_IT(&hadc3);
 
 
-
   while (1)
   {
 	  switch (getAmountOfEmergencySituations()){
@@ -144,7 +138,6 @@ int main(void)
 	  default:
 		  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14, GPIO_PIN_RESET);
 	  }
-
 
     /* USER CODE END WHILE */
 
@@ -446,14 +439,31 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 uint8_t getAmountOfEmergencySituations(void){
-	  uint8_t amountEmSit = 0;
-	  for(uint8_t i; i < 3; i++){
-		  if (emergency_situations[i]){
-			  amountEmSit++;
-		  }
-	  }
-	  return amountEmSit;
+	/* count "1" in array emergency_situations[] */
+	uint8_t amountEmSit = 0;
+	for(uint8_t i = 0; i < 3; i++){
+		if (emergency_situations[i]){
+			amountEmSit++;
+		}
+	}
+	return amountEmSit;
 }
+
+uint32_t getHighDuration(uint32_t adcValue, uint32_t start, uint32_t end){
+	/* return duration of high in one period of PWM
+	 *
+	 * start - ADC value when duty = 0%
+	 * end - ADC value when duty = 100%
+	 * */
+	if (start < end){ //direct proportional dependence
+		return PERIOD * (adcValue - start) / (end - start);
+	} else if (end < start) { //reverse proportional dependence
+		return PERIOD * (start - adcValue) / (start - end);
+	} else {
+		return PERIOD / 2;
+	}
+}
+
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
 	static uint32_t adcValue1 = 0; //internal temp sensor
@@ -462,20 +472,19 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
 
 	if (hadc->Instance == ADC1){ //internal temp sensor
 		adcValue1 = HAL_ADC_GetValue(&hadc1);
-
-		TIM4->CCR2 = HIGH_DURATION(adcValue1); //Orange
-		//TODO: find more correct borders for emergency situations
-		if (adcValue1 < 950){ // Too high temperature
+		//Orange LED from -40C to 125C
+		TIM4->CCR2 = getHighDuration(adcValue1, 1025, 1415);
+		if (adcValue1 > 1100){ // Too high temperature ~35C
 			emergency_situations[0] = 1;
 		}else{
 			emergency_situations[0] = 0;
 		}
 	}else if (hadc->Instance == ADC2){ //external temp sensor
 		adcValue2 = HAL_ADC_GetValue(&hadc2);
+		//Green LED from -24C to 100C
+		TIM4->CCR1 = getHighDuration(adcValue2, 3500, 0);
 
-		TIM4->CCR1 = HIGH_DURATION(adcValue2); //Green
-
-		if (adcValue2 < 1900){ // Too high temperature
+		if (adcValue2 < 1400){ // Too high temperature ~50C
 			emergency_situations[1] = 1;
 		}else{
 			emergency_situations[1] = 0;
@@ -483,7 +492,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc){
 	}else if (hadc->Instance == ADC3){ //potentiometer
 		adcValue3 = HAL_ADC_GetValue(&hadc3);
 
-		TIM4->CCR4 = HIGH_DURATION(adcValue3); //Blue
+		TIM4->CCR4 = getHighDuration(adcValue3, 0, 4096); //Blue LED
 
 		if (adcValue3 > 3000){ // Too high voltage
 			emergency_situations[2] = 1;
