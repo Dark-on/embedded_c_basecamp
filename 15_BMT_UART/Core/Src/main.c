@@ -40,17 +40,9 @@
 
 /* Private variables ---------------------------------------------------------*/
 UART_HandleTypeDef huart3;
-uint8_t txStartMessage[] = "\r\n****UART-communication****\r\n"
-		"\r\n"
-		"sm - show start message\r\n"
-		"g[.] - GREEN, o[.] - ORANGE, r[.] - RED, b[.] - BLUE\n\r"
-		"[.]1 - turn on LED\r\n"
-		"[.]0 - turn off LED\r\n"
-		"Enter 2 characters using keyboard :\r\n";
-
 
 /* USER CODE BEGIN PV */
-uint8_t rcvBuf[2];
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -101,11 +93,53 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  HAL_UART_Transmit(&huart3, txStartMessage, sizeof(txStartMessage), 100);
-
+//  HAL_UART_Transmit(&huart3, txStartMessage, sizeof(txStartMessage), 100);
+  uint8_t rcvBuf[1];
   while (1)
   {
-	  HAL_UART_Receive_IT(&huart3, rcvBuf, 2);
+	  HAL_StatusTypeDef result;
+
+	  result = HAL_UART_Receive(&huart3, rcvBuf, 1, 10);
+	  if (result == HAL_OK){
+		  switch (rcvBuf[0]){
+		  case 'b':
+			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_15);
+			  if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_15) == GPIO_PIN_SET){
+				  HAL_UART_Transmit(&huart3, (uint8_t *)"Blue ON\n\r", 9, 10);
+			  }else{
+				  HAL_UART_Transmit(&huart3, (uint8_t *)"Blue OFF\n\r", 10, 10);
+			  }
+			  break;
+		  case 'g':
+			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+			  if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_12) == GPIO_PIN_SET){
+				  HAL_UART_Transmit(&huart3, (uint8_t *)"Green ON\n\r", 10, 10);
+			  }else{
+				  HAL_UART_Transmit(&huart3, (uint8_t *)"Green OFF\n\r", 11, 10);
+			  }
+			  break;
+		  case 'o':
+			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
+			  if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_13) == GPIO_PIN_SET){
+				  HAL_UART_Transmit(&huart3, (uint8_t *)"Orange ON\n\r", 11, 10);
+			  }else{
+				  HAL_UART_Transmit(&huart3, (uint8_t *)"Orange OFF\n\r", 12, 10);
+			  }
+			  break;
+		  case 'r':
+			  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
+			  if (HAL_GPIO_ReadPin(GPIOD, GPIO_PIN_14) == GPIO_PIN_SET){
+				  HAL_UART_Transmit(&huart3, (uint8_t *)"Red ON\n\r", 8, 10);
+			  }else{
+				  HAL_UART_Transmit(&huart3, (uint8_t *)"Red OFF\n\r", 9, 10);
+			  }
+			  break;
+		  default:
+			  HAL_UART_Transmit(&huart3, (uint8_t *)"UnexpCmd\n\r", 10, 10);
+			  break;
+		  }
+
+	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -200,10 +234,10 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : PD14 PD15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_14|GPIO_PIN_15;
+  /*Configure GPIO pins : PD12 PD13 PD14 PD15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_12|GPIO_PIN_13|GPIO_PIN_14|GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -212,22 +246,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-  switch (rcvBuf[1]){
-  case '1':
-	  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_SET);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"Blue ON\n\r", 9, 10);
-	  break;
-  case '0':
-	  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_15, GPIO_PIN_RESET);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"Blue OFF\n\r", 10, 10);
-	  break;
-  default:
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"UnexpCmd\n\r", 10, 10);
-	  break;
-  }
-}
 /* USER CODE END 4 */
 
 /**
