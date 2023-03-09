@@ -368,9 +368,9 @@ static void MX_GPIO_Init(void)
 /**
   * @brief  Convert temperature number into char[] and store in str.
   *
-  * @note   size of str should be more than or equal len of text message + 6
+  * @note   size of str should be more than or equal to len of text message + 6
   *
-  * @param  temperature - temperature to convert in dC
+  * @param  temperature - temperature in dC to convert
   * @param  str - pointer to str buffer
   *
   * @retval None
