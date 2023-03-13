@@ -69,13 +69,13 @@ void I2C_toggle_outputs(void){
   */
 void I2C_enable_sleep_mode(I2C_HandleTypeDef *hi2c){
 	txBuffer[0] = 0x00;
-	txBuffer[1] = 0x11; // to sleep
+	txBuffer[1] = 0x11; // write 1 to 4th bit
 	HAL_I2C_Master_Transmit(hi2c, devId, (uint8_t *)&txBuffer, 2, 1000);
 }
 
 
 /**
-  * @brief  Disables sleep mode.
+  * @brief  Disables sleep mode and Auto-Increment.
   *
   * @param  hi2c Pointer to a I2C_HandleTypeDef structure that contains
   *                the configuration information for the specified I2C.
@@ -85,6 +85,32 @@ void I2C_enable_sleep_mode(I2C_HandleTypeDef *hi2c){
 void I2C_disable_sleep_mode(I2C_HandleTypeDef *hi2c){
 	txBuffer[0] = 0x00;
 	txBuffer[1] = 0x01; // to normal mode
+	HAL_I2C_Master_Transmit(hi2c, devId, (uint8_t *)&txBuffer, 2, 1000);
+
+	// clear RESTART bit if needed
+	uint8_t dataBuffer[1];
+	HAL_I2C_Mem_Read(hi2c, devId + 1, 0x00, 1, dataBuffer, 1, 1000);
+	if(dataBuffer[0] & 0x80){
+		txBuffer[0] = 0x00;
+		txBuffer[1] = 0x81;
+		HAL_I2C_Master_Transmit(hi2c, devId, (uint8_t *)&txBuffer, 2, 1000);
+	}
+}
+
+
+/**
+  * @brief  Enables Auto-Increment.
+  *
+  * @note   Control register is automatically incremented after a read or write.
+  *
+  * @param  hi2c Pointer to a I2C_HandleTypeDef structure that contains
+  *                the configuration information for the specified I2C.
+  *
+  * @retval None
+  */
+void I2C_enable_ai(I2C_HandleTypeDef *hi2c){
+	txBuffer[0] = 0x00;
+	txBuffer[1] = 0x21; //write 1 to 5th bit
 	HAL_I2C_Master_Transmit(hi2c, devId, (uint8_t *)&txBuffer, 2, 1000);
 }
 
@@ -101,8 +127,9 @@ void I2C_disable_sleep_mode(I2C_HandleTypeDef *hi2c){
   * @retval None
   */
 void I2C_set_duty(I2C_HandleTypeDef *hi2c, LEDn led_number, uint8_t duty){
+	I2C_enable_ai(hi2c);
 	txBuffer[0] = LED0_ON_L + led_number * 4;
-	txBuffer[1] = 0x00;                       //LEDn_ON_L
+	txBuffer[1] = 0x01;                       //LEDn_ON_L
 	txBuffer[2] = 0x00;                       //LEDn_ON_H
 	txBuffer[3] = (4096 * duty / 100) & 0xFF; //LEDn_OFF_L
 	txBuffer[4] = (4096 * duty / 100) >> 8;   //LEDn_OFF_H
@@ -120,8 +147,9 @@ void I2C_set_duty(I2C_HandleTypeDef *hi2c, LEDn led_number, uint8_t duty){
   * @retval None
   */
 void I2C_set_duty_for_all(I2C_HandleTypeDef *hi2c, uint8_t duty){
+	I2C_enable_ai(hi2c);
 	txBuffer[0] = ALL_LED_ON_L;
-	txBuffer[1] = 0x00;                       //ALL_LED_ON_L
+	txBuffer[1] = 0x01;                       //ALL_LED_ON_L
 	txBuffer[2] = 0x00;                       //ALL_LED_ON_H
 	txBuffer[3] = (4096 * duty / 100) & 0xFF; //ALL_LED_OFF_L
 	txBuffer[4] = (4096 * duty / 100) >> 8;   //ALL_LED_OFF_H

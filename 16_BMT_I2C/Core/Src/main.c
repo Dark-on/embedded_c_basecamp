@@ -96,9 +96,9 @@ int main(void)
 
   HAL_Delay(10);
 
-//  I2C_enable_outputs();
-//  I2C_disable_sleep_mode(&hi2c1);
-//  I2C_set_duty(&hi2c1, 60);
+  I2C_enable_outputs();
+  I2C_disable_sleep_mode(&hi2c1);
+  I2C_set_duty_for_all(&hi2c1, 60);
 
   /* USER CODE END 2 */
 
@@ -107,8 +107,9 @@ int main(void)
 
   while (1)
   {
-    /* USER CODE END WHILE */
 	  HAL_UART_Receive_IT(&huart3, rcvBuf, 1);
+    /* USER CODE END WHILE */
+
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
