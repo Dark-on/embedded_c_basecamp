@@ -88,9 +88,9 @@ void I2C_disable_sleep_mode(I2C_HandleTypeDef *hi2c){
 	HAL_I2C_Master_Transmit(hi2c, devId, (uint8_t *)&txBuffer, 2, 1000);
 
 	// clear RESTART bit if needed
-	uint8_t dataBuffer[1];
-	HAL_I2C_Mem_Read(hi2c, devId + 1, 0x00, 1, dataBuffer, 1, 1000);
-	if(dataBuffer[0] & 0x80){
+	uint8_t rvBuffer[1];
+	HAL_I2C_Mem_Read(hi2c, devId + 1, 0x00, 1, rvBuffer, 1, 1000);
+	if(rvBuffer[0] & 0x80){ //check 7th bit
 		txBuffer[0] = 0x00;
 		txBuffer[1] = 0x81;
 		HAL_I2C_Master_Transmit(hi2c, devId, (uint8_t *)&txBuffer, 2, 1000);
@@ -200,8 +200,11 @@ void I2C_set_pwm_frequency(I2C_HandleTypeDef *hi2c, uint16_t frequency){
   * @retval None
   */
 void I2C_write_led_on(I2C_HandleTypeDef *hi2c, LEDn led_number, LED_State LED_State){
+	uint8_t rvBuffer[1];
+	HAL_I2C_Mem_Read(hi2c, devId + 1, LED0_ON_H + led_number * 4, 1, rvBuffer, 1, 1000);
+
 	txBuffer[0] = LED0_ON_H + led_number * 4;
-	txBuffer[1] = LED_State << 4;
+	txBuffer[1] = (LED_State << 4) + (rvBuffer[0] & 0xF);
 	HAL_I2C_Master_Transmit(hi2c, devId, (uint8_t *)&txBuffer, 2, 1000);
 }
 
@@ -225,8 +228,11 @@ void I2C_write_led_on(I2C_HandleTypeDef *hi2c, LEDn led_number, LED_State LED_St
   * @retval None
   */
 void I2C_write_led_off(I2C_HandleTypeDef *hi2c, LEDn led_number, LED_State LED_State){
+	uint8_t rvBuffer[1];
+	HAL_I2C_Mem_Read(hi2c, devId + 1, LED0_OFF_H + led_number * 4, 1, rvBuffer, 1, 1000);
+
 	txBuffer[0] = LED0_OFF_H + led_number * 4;
-	txBuffer[1] = LED_State << 4;
+	txBuffer[1] = (LED_State << 4) + (rvBuffer[0] & 0xF);
 	HAL_I2C_Master_Transmit(hi2c, devId, (uint8_t *)&txBuffer, 2, 1000);
 }
 
@@ -237,6 +243,8 @@ void I2C_write_led_off(I2C_HandleTypeDef *hi2c, LEDn led_number, LED_State LED_S
   *       the ALL_LED_OFF_H[4] function takes precedence.
   * @note The turning ON of the LED is delayed by the amount in the ALL_LED_ON registers.
   *       ALL_LED_OFF[11:0] are ignored.
+  * @note ALL_LED_ON_H[3:0] is non-readable so after calling
+  *       this function these bits will reset
   *
   * @param  hi2c Pointer to a I2C_HandleTypeDef structure that contains
   *                the configuration information for the specified I2C.
@@ -259,6 +267,8 @@ void I2C_write_led_on_for_all(I2C_HandleTypeDef *hi2c, LED_State LED_State){
   *
   * @note If ALL_LED_ON_H[4] and ALL_LED_OFF_H[4] are set at the same time,
   *       the ALL_LED_OFF_H[4] function takes precedence.
+  * @note ALL_LED_OFF_H[3:0] is non-readable so after calling
+  *       this function these bits will reset
   *
   * @param  hi2c Pointer to a I2C_HandleTypeDef structure that contains
   *            the configuration information for the specified I2C.
