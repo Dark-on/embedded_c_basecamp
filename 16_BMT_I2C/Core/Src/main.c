@@ -26,6 +26,10 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+typedef enum{
+	NOT_EQUAL,
+	EQUAL,
+}compare_result_t;
 
 /* USER CODE END PTD */
 
@@ -44,7 +48,7 @@ I2C_HandleTypeDef hi2c1;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-uint8_t rcvBuf[2];
+uint8_t rcvBuf[5];
 
 /* USER CODE END PV */
 
@@ -54,7 +58,8 @@ static void MX_GPIO_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
-
+compare_result_t compare_strings(uint8_t *str1, uint8_t *str2, uint8_t len);
+uint8_t char_to_digit(uint8_t character);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -107,7 +112,7 @@ int main(void)
 
   while (1)
   {
-	  HAL_UART_Receive_IT(&huart3, rcvBuf, 1);
+	  HAL_UART_Receive_IT(&huart3, rcvBuf, 5);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -249,123 +254,232 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+/**
+  * @brief  Compare first "len" symbols of two strings.
+  *
+  * @note   len should be less then or equal to length of shortest string
+  *
+  * @param  str1 One of compared strings
+  * @param  str2 One of compared strings
+  * @param  len Amount of symbols to be compared
+  *
+  * @retval Is equal symbols or not
+  */
+compare_result_t compare_strings(uint8_t *str1, uint8_t *str2, uint8_t len){
+	for (uint8_t i = 0; i < len; i++){
+		if(str1[i] != str2[i]){
+			return NOT_EQUAL;
+		}
+	}
+	return EQUAL;
+}
+
+
+/**
+  * @brief  Convert symbol code to corresponding digit.
+  *
+  * @note   if function got not symbol code of digit than return 0xFF
+  *
+  * @param  character Symbol code to be converted
+  *
+  * @retval Digit corresponding to the character
+  */
+uint8_t char_to_digit(uint8_t character){
+	if('0' <= character || character <= '9'){
+		return character - '0';
+	}
+	return 0xFF;
+}
+
+
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
   switch (rcvBuf[0]){
-  // enable/disable outputs
-  case 'q':
-	  I2C_enable_outputs();
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"Outputs enabled\n\r", 17, 10);
+
+  uint8_t digit1, digit2, digit3, digit4;
+
+  case 'O':
+	  /*
+      enable/disable outputs
+      command examples:
+	  OutEn - enable outputs
+	  OutDs - disable outputs
+	  OutTg - toggle outputs
+	  */
+	  if (compare_strings(rcvBuf, (uint8_t *)"OutEn", 5)){
+		  I2C_enable_outputs();
+		  HAL_UART_Transmit(&huart3, (uint8_t *)"Outputs enabled\n\r", 17, 10);
+		  break;
+	  }else if(compare_strings(rcvBuf, (uint8_t *)"OutDs", 5)){
+		  I2C_disable_outputs();
+		  HAL_UART_Transmit(&huart3, (uint8_t *)"Outputs disabled\n\r", 18, 10);
+		  break;
+	  }else if(compare_strings(rcvBuf, (uint8_t *)"OutTg", 5)){
+		  I2C_toggle_outputs();
+		  HAL_UART_Transmit(&huart3, (uint8_t *)"Outputs toggled\n\r", 17, 10);
+		  break;
+	  /* write led_on/of
+	  command examples:
+	  ON-06 - led_on for LED6
+	  ONn06 - disable led_on for LED6
+	  OFF12 - led_off for LED12
+	  OFn12 - disable led_off for LED12
+	  */
+	  }else if(compare_strings(rcvBuf, (uint8_t *)"ONn", 3)){
+		  digit2 = char_to_digit(rcvBuf[3]);
+		  digit1 = char_to_digit(rcvBuf[4]);
+		  if(digit1 < 10 && digit2 < 10){
+			  uint8_t led = digit2 * 10 + digit1;
+			  I2C_write_led_on(&hi2c1, led, OFF);
+			  HAL_UART_Transmit(&huart3, (uint8_t *)"LED is not ON\n\r", 15, 10);
+			  break;
+		  }
+	  }else if(compare_strings(rcvBuf, (uint8_t *)"ON-", 3)){
+		  digit2 = char_to_digit(rcvBuf[3]);
+		  digit1 = char_to_digit(rcvBuf[4]);
+		  if(digit1 < 10 && digit2 < 10){
+			  uint8_t led = digit2 * 10 + digit1;
+			  I2C_write_led_on(&hi2c1, led, ON);
+			  HAL_UART_Transmit(&huart3, (uint8_t *)"LED is ON\n\r", 11, 10);
+			  break;
+		  }
+	  }else if(compare_strings(rcvBuf, (uint8_t *)"OFF", 3)){
+		  digit2 = char_to_digit(rcvBuf[3]);
+		  digit1 = char_to_digit(rcvBuf[4]);
+		  if(digit1 < 10 && digit2 < 10){
+			  uint8_t led = digit2 * 10 + digit1;
+			  I2C_write_led_off(&hi2c1, led, ON);
+			  HAL_UART_Transmit(&huart3, (uint8_t *)"LED is OFF\n\r", 12, 10);
+			  break;
+		  }
+	  }else if(compare_strings(rcvBuf, (uint8_t *)"OFn", 3)){
+		  digit2 = char_to_digit(rcvBuf[3]);
+		  digit1 = char_to_digit(rcvBuf[4]);
+		  if(digit1 < 10 && digit2 < 10){
+			  uint8_t led = digit2 * 10 + digit1;
+		  	  I2C_write_led_off(&hi2c1, led, OFF);
+		  	  HAL_UART_Transmit(&huart3, (uint8_t *)"LED is not OFF\n\r", 16, 10);
+		  	  break;
+		  }
+	  }
+	  HAL_UART_Transmit(&huart3, rcvBuf, 5, 10);
+	  HAL_UART_Transmit(&huart3, (uint8_t *)" - UnexpCmd\n\r", 13, 10);
 	  break;
-  case 'w':
-	  I2C_disable_outputs();
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"Outputs disabled\n\r", 18, 10);
-	  break;
-  case 'e':
-	  I2C_toggle_outputs();
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"Outputs toggled\n\r", 17, 10);
-	  break;
-  // enable/disable sleep mode
-  case 't':
-	  I2C_enable_sleep_mode(&hi2c1);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"Sleep mode enabled\n\r", 20, 10);
-	  break;
-  case 'y':
-	  I2C_disable_sleep_mode(&hi2c1);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"Sleep mode disabled\n\r", 21, 10);
-	  break;
-  // set duty
-  case 'a':
-	  I2C_set_duty(&hi2c1, LED0, 10);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"Duty is set\n\r", 13, 10);
-	  break;
-  case 's':
-	  I2C_set_duty(&hi2c1, LED0, 25);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"Duty is set\n\r", 13, 10);
-	  break;
-  case 'd':
-	  I2C_set_duty(&hi2c1, LED0, 50);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"Duty is set\n\r", 13, 10);
-	  break;
-  case 'f':
-	  I2C_set_duty(&hi2c1, LED0, 75);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"Duty is set\n\r", 13, 10);
-	  break;
-  //set duty for all
   case 'A':
-	  I2C_set_duty_for_all(&hi2c1, 10);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"Duty is set for all\n\r", 21, 10);
-	  break;
+	  /* write all led_on/of
+	  command examples:
+	  AllON - led_on for all
+	  AlnON - disable led_on for all
+	  AlOFF - led_off for all
+	  AnOFF - disable led_off for all
+	  */
+
+	  if(compare_strings(rcvBuf, (uint8_t *)"AllON", 5)){
+		  I2C_write_led_on_for_all(&hi2c1, ON);
+		  HAL_UART_Transmit(&huart3, (uint8_t *)"LEDs is ON\n\r", 12, 10);
+		  break;
+	  }else if(compare_strings(rcvBuf, (uint8_t *)"AlnON", 5)){
+		  I2C_write_led_on_for_all(&hi2c1, OFF);
+		  HAL_UART_Transmit(&huart3, (uint8_t *)"LEDs is not ON\n\r", 16, 10);
+		  break;
+	  }else if(compare_strings(rcvBuf, (uint8_t *)"AlOFF", 5)){
+		  I2C_write_led_off_for_all(&hi2c1, ON);
+		  HAL_UART_Transmit(&huart3, (uint8_t *)"LEDs is OFF\n\r", 13, 10);
+		  break;
+	  }else if(compare_strings(rcvBuf, (uint8_t *)"AnOFF", 5)){
+		  I2C_write_led_off_for_all(&hi2c1, OFF);
+		  HAL_UART_Transmit(&huart3, (uint8_t *)"LEDs is not OFF\n\r", 17, 10);
+		  break;
+	  }else{
+		  HAL_UART_Transmit(&huart3, rcvBuf, 5, 10);
+		  HAL_UART_Transmit(&huart3, (uint8_t *)(" - UnexpCmd\n\r"), 13, 10);
+		  break;
+	  }
   case 'S':
-	  I2C_set_duty_for_all(&hi2c1, 25);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"Duty is set for all\n\r", 21, 10);
-	  break;
+	  /* enable/disable sleep mode
+	  command examples:
+	  SlmEn - enable sleep mode
+	  SlmDs - disable sleep mode
+	   */
+	  if(compare_strings(rcvBuf, (uint8_t *)"SlmEn", 5)){
+		  I2C_enable_sleep_mode(&hi2c1);
+		  HAL_UART_Transmit(&huart3, (uint8_t *)"Sleep mode enabled\n\r", 20, 10);
+		  break;
+	  } else if(compare_strings(rcvBuf, (uint8_t *)"SlmDs", 5)){
+		  I2C_disable_sleep_mode(&hi2c1);
+		  HAL_UART_Transmit(&huart3, (uint8_t *)"Sleep mode disabled\n\r", 21, 10);
+		  break;
+	  }else{
+		  HAL_UART_Transmit(&huart3, rcvBuf, 5, 10);
+		  HAL_UART_Transmit(&huart3, (uint8_t *)(" - UnexpCmd\n\r"), 13, 10);
+		  break;
+	  }
   case 'D':
-	  I2C_set_duty_for_all(&hi2c1, 50);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"Duty is set for all\n\r", 21, 10);
+	  /*
+	  set duty
+	  command examples:
+	  D0680 - set duty 80% for LED6
+	  DAl95 - set duty 95% for all LEDs
+	   */
+	  if (compare_strings(rcvBuf, (uint8_t *)"DAl", 3)){
+		  uint8_t digit2 = char_to_digit(rcvBuf[3]);
+		  uint8_t digit1 = char_to_digit(rcvBuf[4]);
+		  if(digit2 < 10 && digit1 < 10){
+			  uint8_t duty = digit2 * 10 + digit1;
+		  	  I2C_set_duty_for_all(&hi2c1, duty);
+		  	  HAL_UART_Transmit(&huart3, (uint8_t *)"Duty is set for all\n\r", 21, 10);
+		  	  break;
+		  }
+	  }else{
+		  digit4 = char_to_digit(rcvBuf[1]);
+		  digit3 = char_to_digit(rcvBuf[2]);
+		  digit2 = char_to_digit(rcvBuf[3]);
+		  digit1 = char_to_digit(rcvBuf[4]);
+		  if(digit1 < 10 && digit2 < 10 && digit3 < 10 && digit4 < 10){
+			  uint8_t led  = digit4 * 10 + digit3;
+			  if (led <= 15){
+				  uint8_t duty = digit2 * 10 + digit1;
+				  I2C_set_duty(&hi2c1, led, duty);
+				  HAL_UART_Transmit(&huart3, (uint8_t *)"Duty is set\n\r", 13, 10);
+				  break;
+			  }else{
+				  HAL_UART_Transmit(&huart3, (uint8_t *)"LED number is out of range\n\r", 28, 10);
+				  break;
+			  }
+		  }
+	  }
+
+	  HAL_UART_Transmit(&huart3, rcvBuf, 5, 10);
+	  HAL_UART_Transmit(&huart3, (uint8_t *)(" - UnexpCmd\n\r"), 13, 10);
 	  break;
   case 'F':
-	  I2C_set_duty_for_all(&hi2c1, 75);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"Duty is set for all\n\r", 21, 10);
-	  break;
-  // set frequency
-  case 'h':
-	  I2C_set_pwm_frequency(&hi2c1, 24);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"Frequency is set\n\r", 18, 10);
-	  break;
-  case 'j':
-	  I2C_set_pwm_frequency(&hi2c1, 500);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"Frequency is set\n\r", 18, 10);
-	  break;
-  case 'k':
-	  I2C_set_pwm_frequency(&hi2c1, 1000);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"Frequency is set\n\r", 18, 10);
-	  break;
-  case 'l':
-	  I2C_set_pwm_frequency(&hi2c1, 1526);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"Frequency is set\n\r", 18, 10);
-	  break;
-  // write led_on
-  case 'x':
-	  I2C_write_led_on(&hi2c1, LED0, ON);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"LED0 is ON\n\r", 12, 10);
-	  break;
-  case 'X':
-	  I2C_write_led_on_for_all(&hi2c1, ON);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"LEDs is ON\n\r", 12, 10);
-	  break;
-  case 'c':
-	  I2C_write_led_on(&hi2c1, LED0, OFF);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"LED0 is not ON\n\r", 16, 10);
-	  break;
-  case 'C':
-	  I2C_write_led_on_for_all(&hi2c1, OFF);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"LEDs is not ON\n\r", 16, 10);
-	  break;
-  // write led_off
-  case 'b':
-	  I2C_write_led_off(&hi2c1, LED0, ON);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"LED0 is OFF\n\r", 13, 10);
-	  break;
-  case 'B':
-	  I2C_write_led_off_for_all(&hi2c1, ON);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"LEDs is OFF\n\r", 13, 10);
-	  break;
-  case 'n':
-	  I2C_write_led_off(&hi2c1, LED0, OFF);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"LED0 is not OFF\n\r", 17, 10);
-	  break;
-  case 'N':
-	  I2C_write_led_off_for_all(&hi2c1, OFF);
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"LEDs is not OFF\n\r", 17, 10);
-	  break;
-
+	  /* set frequency
+	  command examples:
+	  F1000 - set frequency 1000Hz
+	  F0050 - set frequency 50Hz
+	  */
+	  digit4 = char_to_digit(rcvBuf[1]);
+	  digit3 = char_to_digit(rcvBuf[2]);
+	  digit2 = char_to_digit(rcvBuf[3]);
+	  digit1 = char_to_digit(rcvBuf[4]);
+	  if(digit1 < 10 && digit2 < 10 && digit3 < 10 && digit4 < 10){
+		  uint16_t frequency = digit4 * 1000 + digit3 * 100 + digit2 * 10 + digit1;
+		  if (24 <= frequency && frequency <= 1526){
+			  I2C_set_pwm_frequency(&hi2c1, frequency);
+			  HAL_UART_Transmit(&huart3, (uint8_t *)"Frequency is set\n\r", 18, 10);
+			  break;
+		  }else{
+			  HAL_UART_Transmit(&huart3, (uint8_t *)"Frequency is out of range\n\r", 27, 10);
+			  break;
+		  }
+	  }
+	  //no break
   default:
-	  HAL_UART_Transmit(&huart3, (uint8_t *)"UnexpCmd\n\r", 10, 10);
+	  HAL_UART_Transmit(&huart3, rcvBuf, 5, 10);
+	  HAL_UART_Transmit(&huart3, (uint8_t *)(" - UnexpCmd\n\r"), 13, 10);
 	  break;
   }
 }
-
 /* USER CODE END 4 */
 
 /**
