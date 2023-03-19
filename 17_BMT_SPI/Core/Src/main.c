@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -29,7 +29,7 @@
 typedef enum
 {
 	RCV_SPI_ERR = 0,
-	READ_OK = 1
+	SPI_OK = 1
 } SPI_RetCode_t;
 /* USER CODE END PTD */
 
@@ -39,25 +39,25 @@ typedef enum
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-#define LINE_NUMBER 20
+#define LINE_NUMBER 22
 #define LINE_SIZE  100
 #define BLOCK_SIZE 4096
 
-#define CMD_READ       0x03
-#define CMD_READ_FAST  0x0B
-#define CMD_ERASE_4K   0x20
-#define CMD_ERASE_32K  0x52
-#define CMD_ERASE_64K  0xD8
-#define CMD_ERASE_CHIP 0x60
-#define CMD_PROG_BYTE  0x02
-#define CMD_PROG_WORD  0xAD
-#define CMD_RDSR       0x05
-#define CMD_EWSR       0x50
-#define CMD_WRSR       0x01
-#define CMD_WREN       0x06
-#define CMD_WRDI       0x04
-#define CMD_READ_ID    0x90
-#define CMD_JEDEC_ID   0x9F
+#define CMD_READ       0x03 //Read Memory at 25MHz
+#define CMD_READ_FAST  0x0B //Read Memory at 50MHz
+#define CMD_ERASE_4K   0x20 //Erase 4 KByte of memory array
+#define CMD_ERASE_32K  0x52 //Erase 32 KByte block of memory array
+#define CMD_ERASE_64K  0xD8 //Erase 64 KByte block of memory array
+#define CMD_ERASE_CHIP 0x60 //Erase Full Memory Array
+#define CMD_PROG_BYTE  0x02 //To Program One Data Byte
+#define CMD_PROG_WORD  0xAD //Auto Address Increment Programming
+#define CMD_RDSR       0x05 //Read-Status-Register
+#define CMD_EWSR       0x50 //Enable-Write-Status-Register
+#define CMD_WRSR       0x01 //Write-Status-Register
+#define CMD_WREN       0x06 //Write-Enable
+#define CMD_WRDI       0x04 //Write-Disable
+#define CMD_READ_ID    0x90 //Read-ID
+#define CMD_JEDEC_ID   0x9F //JEDEC ID read
 #define CMD_EBSY       0x70
 #define CMD_DBSY       0x80
 
@@ -69,7 +69,32 @@ SPI_HandleTypeDef hspi1;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
+const char * text[LINE_NUMBER] = {
+		"From: Svitlana Drozd, drozd.svit@gmail.com\n",
+		"Mentor: Bogdan Liulko, bogdan.liulko@globallogic.com\n",
+		"Date: 19.03.2023\n",
+		"TIME CAPSULE\n",
 
+		"You can't buy this fineness\n",
+		"Let me see the heat get to you\n",
+		"Let me watch the dressing start to peel\n",
+		"It's a kindness, highness\n",
+		"Crumbs enough for everyone\n",
+		"Old and young are welcome to the meal\n",
+		"Honey, I'm makin' sure the table's made\n",
+		"We can celebrate the good that we've done\n",
+		"I won't lie if there's somethin' still to take\n",
+		"There is ground to break, whatever's still to come\n",
+
+		"Get some\n",
+		"Pull up the ladder when the flood comes\n",
+		"Throw enough rope until the legs have swung\n",
+		"Seven new ways that you can eat your young\n",
+		"Come and get some\n",
+		"Skinnin' the children for a war drum\n",
+		"Puttin' food on the table sellin' bombs and guns\n",
+		"It's quicker and easier to eat your young\n"
+};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -79,6 +104,9 @@ static void MX_SPI1_Init(void);
 static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
 SPI_RetCode_t SPI_Read(void);
+SPI_RetCode_t SPI_Erase(void);
+SPI_RetCode_t SPI_Write_status(uint8_t const status);
+SPI_RetCode_t SPI_Write(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -122,6 +150,16 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
+  SPI_Erase();
+
+  SPI_Read();
+
+  SPI_Write();
+
+  SPI_Read();
+
+  SPI_Erase();
 
   SPI_Read();
 
@@ -299,31 +337,120 @@ SPI_RetCode_t SPI_Read(void){
 		if (spi_status != HAL_OK)
 			return RCV_SPI_ERR;
 
-		uint8_t symbol = 0;
-		for(; symbol < LINE_SIZE; symbol++){
+		uint16_t first_empty_pos = 0;
+		for(uint16_t symbol = 0; symbol < LINE_SIZE; symbol++){
 			if(rcvBuf[symbol] == 0xFF || rcvBuf[symbol] == '\n'){
-				rcvBuf[symbol] = '\r';
-				rcvBuf[symbol + 1] = '\n';
+				rcvBuf[symbol] = '\n';
+				rcvBuf[symbol + 1] = '\r';
+				first_empty_pos = symbol;
 				break;
 			}
 		}
-		if (symbol){
-			HAL_UART_Transmit(&huart3, rcvBuf, symbol + 1, 1000);
+		if (first_empty_pos > 0){
+			HAL_UART_Transmit(&huart3, rcvBuf, first_empty_pos + 2, 1000);
 		}else{
+			rcvBuf[0] = '0' + block / 10;
+			rcvBuf[1] = '0' + block % 10;
+			rcvBuf[2] = ' ';
+			HAL_UART_Transmit(&huart3, rcvBuf, 3, 1000);
 			HAL_UART_Transmit(&huart3, (uint8_t *)"Block is empty\n\r", 16, 1000);
 		}
 	}
-	return READ_OK;
+	return SPI_OK;
 }
 
-//
-//void SPI_Erase(void){
-//
-//}
-//
-//void SPI_Write(void){
-//
-//}
+
+SPI_RetCode_t SPI_Erase(void){
+	SPI_Write_status(0x80);
+
+	uint8_t cmdBuf[1] = {0};
+	cmdBuf[0] = CMD_WREN;
+
+	HAL_StatusTypeDef spi_status;
+	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_RESET);
+	spi_status = HAL_SPI_Transmit(&hspi1, cmdBuf, 1, 1);
+	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_SET);
+
+	if (spi_status != HAL_OK)
+		return RCV_SPI_ERR;
+
+	cmdBuf[0] = CMD_ERASE_CHIP;
+	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_RESET);
+	spi_status = HAL_SPI_Transmit(&hspi1, cmdBuf, 1, 1);
+//	spi_status = HAL_SPI_TransmitReceive(&hspi1, cmdBuf, spiBufRx, 1, 1);
+	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_SET);
+	if (spi_status != HAL_OK)
+		return RCV_SPI_ERR;
+	HAL_Delay(50); //TSCE
+
+	SPI_Write_status(0x1C);
+
+	return SPI_OK;
+
+}
+
+
+SPI_RetCode_t SPI_Write_status(uint8_t const status){
+	uint8_t cmdBuf[2] = {0};
+
+	cmdBuf[0] = CMD_EWSR;
+	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_RESET);
+	HAL_StatusTypeDef spi_status = HAL_SPI_Transmit(&hspi1, cmdBuf, 1, 1000);
+	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_SET);
+
+	if (spi_status != HAL_OK)
+		return RCV_SPI_ERR;
+
+	cmdBuf[0] = CMD_WRSR;
+	cmdBuf[1] = status;
+	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_RESET);
+	spi_status = HAL_SPI_Transmit(&hspi1, cmdBuf, 2, 1000);
+	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_SET);
+
+	if (spi_status != HAL_OK)
+		return RCV_SPI_ERR;
+	return SPI_OK;
+}
+
+
+SPI_RetCode_t SPI_Write(void){
+	SPI_Write_status(0x80);
+
+	for (uint8_t line = 0; line < LINE_NUMBER; line++){
+		for (uint8_t symbol = 0; symbol < strlen(text[line]); symbol++) {
+			uint8_t cmdBuf[5] = {0};
+			cmdBuf[0] = CMD_WREN;
+			HAL_StatusTypeDef spi_status;
+
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_RESET);
+			spi_status = HAL_SPI_Transmit(&hspi1, cmdBuf, 1, 1);
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_SET);
+
+			if (spi_status != HAL_OK)
+				return RCV_SPI_ERR;
+
+			uint32_t address = line * BLOCK_SIZE + symbol;
+
+			cmdBuf[0] = CMD_PROG_BYTE;
+			cmdBuf[1] = (address >> 16) & 0xFF;
+			cmdBuf[2] = (address >>  8) & 0xFF;
+			cmdBuf[3] = (address >>  0) & 0xFF;
+			cmdBuf[4] = text[line][symbol];
+
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_RESET);
+			spi_status = HAL_SPI_Transmit(&hspi1, cmdBuf, 5, 1000);
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_SET);
+
+			if (spi_status != HAL_OK)
+				return RCV_SPI_ERR;
+			HAL_Delay(1); //TBP 10 microseconds
+		}
+	}
+	SPI_Write_status(0x1C);
+
+	return SPI_OK;
+}
+
 
 
 
