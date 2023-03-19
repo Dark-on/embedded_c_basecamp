@@ -26,7 +26,11 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+typedef enum
+{
+	RCV_SPI_ERR = 0,
+	READ_OK = 1
+} SPI_RetCode_t;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -35,11 +39,34 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
+#define LINE_NUMBER 20
+#define LINE_SIZE  100
+#define BLOCK_SIZE 4096
+
+#define CMD_READ       0x03
+#define CMD_READ_FAST  0x0B
+#define CMD_ERASE_4K   0x20
+#define CMD_ERASE_32K  0x52
+#define CMD_ERASE_64K  0xD8
+#define CMD_ERASE_CHIP 0x60
+#define CMD_PROG_BYTE  0x02
+#define CMD_PROG_WORD  0xAD
+#define CMD_RDSR       0x05
+#define CMD_EWSR       0x50
+#define CMD_WRSR       0x01
+#define CMD_WREN       0x06
+#define CMD_WRDI       0x04
+#define CMD_READ_ID    0x90
+#define CMD_JEDEC_ID   0x9F
+#define CMD_EBSY       0x70
+#define CMD_DBSY       0x80
 
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 SPI_HandleTypeDef hspi1;
+
+UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
 
@@ -49,8 +76,9 @@ SPI_HandleTypeDef hspi1;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI1_Init(void);
+static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
-
+SPI_RetCode_t SPI_Read(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -87,6 +115,7 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_SPI1_Init();
+  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -94,37 +123,10 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-  //CS = HIGH
-  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_SET);
-  HAL_Delay(100);
-
-  // Prepare Transmit and Receive Arrays
-  uint8_t TransmitArray[100] = {0};
-  uint8_t ReceiveArray[100] = {0};
-
-  uint32_t addr = 0;
+  SPI_Read();
 
   while (1)
   {
-	  // Prepare READ-ID command
-	  TransmitArray[0] = 0x03;
-	  TransmitArray[1] = (addr >> 16) & 0xFF;
-	  TransmitArray[2] = (addr >> 8) & 0xFF;
-	  TransmitArray[3] = addr & 0xFF;
-
-	  //CS = LOW
-	  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_RESET);
-
-	  //Exchange data
-	  HAL_SPI_TransmitReceive(&hspi1, TransmitArray, ReceiveArray, 100, 100);
-
-	  //CS = HIGH
-	  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_SET);
-
-	  addr += 100;
-
-	  HAL_Delay(1000);
-
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -212,6 +214,39 @@ static void MX_SPI1_Init(void)
 }
 
 /**
+  * @brief USART3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART3_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART3_Init 0 */
+
+  /* USER CODE END USART3_Init 0 */
+
+  /* USER CODE BEGIN USART3_Init 1 */
+
+  /* USER CODE END USART3_Init 1 */
+  huart3.Instance = USART3;
+  huart3.Init.BaudRate = 115200;
+  huart3.Init.WordLength = UART_WORDLENGTH_8B;
+  huart3.Init.StopBits = UART_STOPBITS_1;
+  huart3.Init.Parity = UART_PARITY_NONE;
+  huart3.Init.Mode = UART_MODE_TX_RX;
+  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART3_Init 2 */
+
+  /* USER CODE END USART3_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -238,6 +273,59 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+SPI_RetCode_t SPI_Read(void){
+	for (uint8_t block = 0; block < LINE_NUMBER; block++){
+
+		uint8_t cmdBuf[4] = {0};
+		uint8_t rcvBuf[LINE_SIZE] = {0};
+
+		uint32_t address = block * BLOCK_SIZE;
+		cmdBuf[0] = CMD_READ;
+		cmdBuf[1] = (address >> 16) & 0xFF;
+		cmdBuf[2] = (address >>  8) & 0xFF;
+		cmdBuf[3] = (address >>  0) & 0xFF;
+
+		HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_RESET);
+
+		HAL_StatusTypeDef spi_status = HAL_SPI_Transmit(&hspi1, cmdBuf, 4, 1000);
+		if (spi_status != HAL_OK) {
+			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_SET);
+			return RCV_SPI_ERR;
+		}
+
+		spi_status = HAL_SPI_Receive(&hspi1, rcvBuf, LINE_SIZE, 1000);
+		HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_SET);
+		if (spi_status != HAL_OK)
+			return RCV_SPI_ERR;
+
+		uint8_t symbol = 0;
+		for(; symbol < LINE_SIZE; symbol++){
+			if(rcvBuf[symbol] == 0xFF || rcvBuf[symbol] == '\n'){
+				rcvBuf[symbol] = '\r';
+				rcvBuf[symbol + 1] = '\n';
+				break;
+			}
+		}
+		if (symbol){
+			HAL_UART_Transmit(&huart3, rcvBuf, symbol + 1, 1000);
+		}else{
+			HAL_UART_Transmit(&huart3, (uint8_t *)"Block is empty\n\r", 16, 1000);
+		}
+	}
+	return READ_OK;
+}
+
+//
+//void SPI_Erase(void){
+//
+//}
+//
+//void SPI_Write(void){
+//
+//}
+
+
 
 /* USER CODE END 4 */
 
