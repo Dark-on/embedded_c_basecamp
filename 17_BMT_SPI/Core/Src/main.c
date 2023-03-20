@@ -21,16 +21,11 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <string.h>
+#include "spi_flash.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-typedef enum
-{
-	RCV_SPI_ERR = 0,
-	SPI_OK = 1
-} SPI_RetCode_t;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -40,27 +35,6 @@ typedef enum
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 #define LINE_NUMBER 22
-#define LINE_SIZE  100
-#define BLOCK_SIZE 4096
-
-#define CMD_READ       0x03 //Read Memory at 25MHz
-#define CMD_READ_FAST  0x0B //Read Memory at 50MHz
-#define CMD_ERASE_4K   0x20 //Erase 4 KByte of memory array
-#define CMD_ERASE_32K  0x52 //Erase 32 KByte block of memory array
-#define CMD_ERASE_64K  0xD8 //Erase 64 KByte block of memory array
-#define CMD_ERASE_CHIP 0x60 //Erase Full Memory Array
-#define CMD_PROG_BYTE  0x02 //To Program One Data Byte
-#define CMD_PROG_WORD  0xAD //Auto Address Increment Programming
-#define CMD_RDSR       0x05 //Read-Status-Register
-#define CMD_EWSR       0x50 //Enable-Write-Status-Register
-#define CMD_WRSR       0x01 //Write-Status-Register
-#define CMD_WREN       0x06 //Write-Enable
-#define CMD_WRDI       0x04 //Write-Disable
-#define CMD_READ_ID    0x90 //Read-ID
-#define CMD_JEDEC_ID   0x9F //JEDEC ID read
-#define CMD_EBSY       0x70
-#define CMD_DBSY       0x80
-
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -103,10 +77,13 @@ static void MX_GPIO_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
-SPI_RetCode_t SPI_Read(void);
-SPI_RetCode_t SPI_Erase(void);
-SPI_RetCode_t SPI_Write_status(uint8_t const status);
-SPI_RetCode_t SPI_Write(void);
+//SPI_RetCode_t SPI_Read(void);
+//SPI_RetCode_t SPI_Erase_All(void);
+//SPI_RetCode_t SPI_Write_status(uint8_t const status);
+//SPI_RetCode_t SPI_Write(void);
+//HAL_StatusTypeDef SPI_Write_Enable(void);
+//SPI_RetCode_t SPI_Erase_sector(uint8_t const sector_number);
+//SPI_RetCode_t SPI_Erase_block(block_size_t const block_size, uint8_t const block_number);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -151,20 +128,75 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-  SPI_Erase();
+  SPI_Write(text, LINE_NUMBER);
 
-  SPI_Read();
+  SPI_Read(LINE_NUMBER);
 
-  SPI_Write();
+  SPI_Erase_sector(0);
 
-  SPI_Read();
+  SPI_Read(LINE_NUMBER);
 
-  SPI_Erase();
-
-  SPI_Read();
+  uint8_t rcvBuf[1];
 
   while (1)
   {
+	  if (HAL_UART_Receive(&huart3, rcvBuf, 1, 10) == HAL_OK){
+	  switch (rcvBuf[0]){
+	  case 'w': //Write
+		  HAL_UART_Transmit(&huart3, (uint8_t *)"Start writing\n\r", 15, 10);
+		  if (SPI_Write(text, LINE_NUMBER) == SPI_OK){
+			  HAL_UART_Transmit(&huart3, (uint8_t *)"Writing is successful\n\r", 23, 10);
+		  }else{
+			  HAL_UART_Transmit(&huart3, (uint8_t *)"Writing is not successful\n\r", 27, 10);
+		  }
+		  break;
+	  case 'r': //Read
+		  HAL_UART_Transmit(&huart3, (uint8_t *)"Start reading\n\r", 15, 10);
+		  if (SPI_Read(LINE_NUMBER) == SPI_OK){
+			  HAL_UART_Transmit(&huart3, (uint8_t *)"Reading is successful\n\r", 23, 10);
+		  }else{
+			  HAL_UART_Transmit(&huart3, (uint8_t *)"Reading is not successful\n\r", 27, 10);
+		  }
+		  break;
+	  case 's': //Erase 0th sector
+		  HAL_UART_Transmit(&huart3, (uint8_t *)"Start erasing sector\n\r", 22, 10);
+		  if (SPI_Erase_sector(0) == SPI_OK){
+			  HAL_UART_Transmit(&huart3, (uint8_t *)"Erasing is successful\n\r", 23, 10);
+		  }else{
+			  HAL_UART_Transmit(&huart3, (uint8_t *)"Erasing is not successful\n\r", 27, 10);
+		  }
+		  break;
+	  case 'd': //Erase 1th 32KB block
+		  HAL_UART_Transmit(&huart3, (uint8_t *)"Start erasing 32KB block\n\r", 26, 10);
+		  if (SPI_Erase_block(BLOCK_32KB, 1) == SPI_OK){
+			  HAL_UART_Transmit(&huart3, (uint8_t *)"Erasing is successful\n\r", 23, 10);
+		  }else{
+			  HAL_UART_Transmit(&huart3, (uint8_t *)"Erasing is not successful\n\r", 27, 10);
+		  }
+
+		  break;
+	  case 'f': //Erase 2th 64KB block
+		  HAL_UART_Transmit(&huart3, (uint8_t *)"Start erasing 64KB block\n\r", 26, 10);
+		  if (SPI_Erase_block(BLOCK_64KB, 2) == SPI_OK){
+			  HAL_UART_Transmit(&huart3, (uint8_t *)"Erasing is successful\n\r", 23, 10);
+		  }else{
+			  HAL_UART_Transmit(&huart3, (uint8_t *)"Erasing is not successful\n\r", 27, 10);
+		  }
+		  break;
+	  case 'e': //Erase all
+		  HAL_UART_Transmit(&huart3, (uint8_t *)"Start erasing chip\n\r", 20, 10);
+		  if (SPI_Erase_All() == SPI_OK){
+			  HAL_UART_Transmit(&huart3, (uint8_t *)"Erasing is successful\n\r", 23, 10);
+		  }else{
+			  HAL_UART_Transmit(&huart3, (uint8_t *)"Erasing is not successful\n\r", 27, 10);
+		  }
+		  break;
+	  default:
+		  HAL_UART_Transmit(&huart3, (uint8_t *)"UnexpCmd\n\r", 10, 10);
+		  break;
+	  }
+
+  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -236,7 +268,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -311,145 +343,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
-SPI_RetCode_t SPI_Read(void){
-	for (uint8_t block = 0; block < LINE_NUMBER; block++){
-
-		uint8_t cmdBuf[4] = {0};
-		uint8_t rcvBuf[LINE_SIZE] = {0};
-
-		uint32_t address = block * BLOCK_SIZE;
-		cmdBuf[0] = CMD_READ;
-		cmdBuf[1] = (address >> 16) & 0xFF;
-		cmdBuf[2] = (address >>  8) & 0xFF;
-		cmdBuf[3] = (address >>  0) & 0xFF;
-
-		HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_RESET);
-
-		HAL_StatusTypeDef spi_status = HAL_SPI_Transmit(&hspi1, cmdBuf, 4, 1000);
-		if (spi_status != HAL_OK) {
-			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_SET);
-			return RCV_SPI_ERR;
-		}
-
-		spi_status = HAL_SPI_Receive(&hspi1, rcvBuf, LINE_SIZE, 1000);
-		HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_SET);
-		if (spi_status != HAL_OK)
-			return RCV_SPI_ERR;
-
-		uint16_t first_empty_pos = 0;
-		for(uint16_t symbol = 0; symbol < LINE_SIZE; symbol++){
-			if(rcvBuf[symbol] == 0xFF || rcvBuf[symbol] == '\n'){
-				rcvBuf[symbol] = '\n';
-				rcvBuf[symbol + 1] = '\r';
-				first_empty_pos = symbol;
-				break;
-			}
-		}
-		if (first_empty_pos > 0){
-			HAL_UART_Transmit(&huart3, rcvBuf, first_empty_pos + 2, 1000);
-		}else{
-			rcvBuf[0] = '0' + block / 10;
-			rcvBuf[1] = '0' + block % 10;
-			rcvBuf[2] = ' ';
-			HAL_UART_Transmit(&huart3, rcvBuf, 3, 1000);
-			HAL_UART_Transmit(&huart3, (uint8_t *)"Block is empty\n\r", 16, 1000);
-		}
-	}
-	return SPI_OK;
-}
-
-
-SPI_RetCode_t SPI_Erase(void){
-	SPI_Write_status(0x80);
-
-	uint8_t cmdBuf[1] = {0};
-	cmdBuf[0] = CMD_WREN;
-
-	HAL_StatusTypeDef spi_status;
-	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_RESET);
-	spi_status = HAL_SPI_Transmit(&hspi1, cmdBuf, 1, 1);
-	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_SET);
-
-	if (spi_status != HAL_OK)
-		return RCV_SPI_ERR;
-
-	cmdBuf[0] = CMD_ERASE_CHIP;
-	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_RESET);
-	spi_status = HAL_SPI_Transmit(&hspi1, cmdBuf, 1, 1);
-//	spi_status = HAL_SPI_TransmitReceive(&hspi1, cmdBuf, spiBufRx, 1, 1);
-	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_SET);
-	if (spi_status != HAL_OK)
-		return RCV_SPI_ERR;
-	HAL_Delay(50); //TSCE
-
-	SPI_Write_status(0x1C);
-
-	return SPI_OK;
-
-}
-
-
-SPI_RetCode_t SPI_Write_status(uint8_t const status){
-	uint8_t cmdBuf[2] = {0};
-
-	cmdBuf[0] = CMD_EWSR;
-	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_RESET);
-	HAL_StatusTypeDef spi_status = HAL_SPI_Transmit(&hspi1, cmdBuf, 1, 1000);
-	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_SET);
-
-	if (spi_status != HAL_OK)
-		return RCV_SPI_ERR;
-
-	cmdBuf[0] = CMD_WRSR;
-	cmdBuf[1] = status;
-	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_RESET);
-	spi_status = HAL_SPI_Transmit(&hspi1, cmdBuf, 2, 1000);
-	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_SET);
-
-	if (spi_status != HAL_OK)
-		return RCV_SPI_ERR;
-	return SPI_OK;
-}
-
-
-SPI_RetCode_t SPI_Write(void){
-	SPI_Write_status(0x80);
-
-	for (uint8_t line = 0; line < LINE_NUMBER; line++){
-		for (uint8_t symbol = 0; symbol < strlen(text[line]); symbol++) {
-			uint8_t cmdBuf[5] = {0};
-			cmdBuf[0] = CMD_WREN;
-			HAL_StatusTypeDef spi_status;
-
-			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_RESET);
-			spi_status = HAL_SPI_Transmit(&hspi1, cmdBuf, 1, 1);
-			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_SET);
-
-			if (spi_status != HAL_OK)
-				return RCV_SPI_ERR;
-
-			uint32_t address = line * BLOCK_SIZE + symbol;
-
-			cmdBuf[0] = CMD_PROG_BYTE;
-			cmdBuf[1] = (address >> 16) & 0xFF;
-			cmdBuf[2] = (address >>  8) & 0xFF;
-			cmdBuf[3] = (address >>  0) & 0xFF;
-			cmdBuf[4] = text[line][symbol];
-
-			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_RESET);
-			spi_status = HAL_SPI_Transmit(&hspi1, cmdBuf, 5, 1000);
-			HAL_GPIO_WritePin(GPIOD, GPIO_PIN_7, GPIO_PIN_SET);
-
-			if (spi_status != HAL_OK)
-				return RCV_SPI_ERR;
-			HAL_Delay(1); //TBP 10 microseconds
-		}
-	}
-	SPI_Write_status(0x1C);
-
-	return SPI_OK;
-}
 
 
 
