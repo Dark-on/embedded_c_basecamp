@@ -77,13 +77,6 @@ static void MX_GPIO_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
-//SPI_RetCode_t SPI_Read(void);
-//SPI_RetCode_t SPI_Erase_All(void);
-//SPI_RetCode_t SPI_Write_status(uint8_t const status);
-//SPI_RetCode_t SPI_Write(void);
-//HAL_StatusTypeDef SPI_Write_Enable(void);
-//SPI_RetCode_t SPI_Erase_sector(uint8_t const sector_number);
-//SPI_RetCode_t SPI_Erase_block(block_size_t const block_size, uint8_t const block_number);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
