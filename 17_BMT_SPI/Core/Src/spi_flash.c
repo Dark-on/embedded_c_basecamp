@@ -107,7 +107,6 @@ SPI_RetCode_t SPI_Erase_All(void){
 	SPI_Write_status(0x1C);
 
 	return SPI_OK;
-
 }
 
 

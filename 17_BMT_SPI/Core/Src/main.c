@@ -128,14 +128,6 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-  SPI_Write(text, LINE_NUMBER);
-
-  SPI_Read(LINE_NUMBER);
-
-  SPI_Erase_sector(0);
-
-  SPI_Read(LINE_NUMBER);
-
   uint8_t rcvBuf[1];
 
   while (1)
